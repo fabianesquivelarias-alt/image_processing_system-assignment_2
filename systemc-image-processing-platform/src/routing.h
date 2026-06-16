@@ -21,9 +21,40 @@ SC_MODULE(routing) {
 
     void b_transport_cpu(tlm::tlm_generic_payload& trans, sc_time& delay) {
         // handle incoming transactions
+        routing_data(trans, delay);
     }
 
     void b_transport_accel(tlm::tlm_generic_payload& trans, sc_time& delay) {
         // handle incoming transactions
+        routing_data(trans, delay);
+    }
+
+    // Helper: route a transaction based on its address to the correct initiator
+    void routing_data(tlm::tlm_generic_payload& trans, sc_time& delay) {
+        uint64_t addr = trans.get_address();
+
+        // Route to RAM
+        if (addr >= sys_cfg::RAM_BASE_ADDR && addr < (sys_cfg::RAM_BASE_ADDR + sys_cfg::RAM_SIZE)) {
+            trans.set_address(addr - sys_cfg::RAM_BASE_ADDR);
+            init_ram_mem->b_transport(trans, delay);
+            return;
+        }
+
+        // Route to Disk (assume disk region covers image size)
+        if (addr >= sys_cfg::DISK_BASE_ADDR && addr < (sys_cfg::DISK_BASE_ADDR + sys_cfg::RGB_SIZE)) {
+            trans.set_address(addr - sys_cfg::DISK_BASE_ADDR);
+            init_disk_storage->b_transport(trans, delay);
+            return;
+        }
+
+        // Route to Accelerator
+        if (addr >= sys_cfg::ACCEL_BASE_ADDR && addr < (sys_cfg::ACCEL_BASE_ADDR + sys_cfg::RGB_SIZE)) {
+            trans.set_address(addr - sys_cfg::ACCEL_BASE_ADDR);
+            init_accelator->b_transport(trans, delay);
+            return;
+        }
+
+        // No matching target
+        trans.set_response_status(tlm::TLM_ADDRESS_ERROR_RESPONSE);
     }
 };
